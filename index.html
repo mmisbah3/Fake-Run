@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Planner & Pace Manager GPX Generator</title>
+    <title>Route Planner - Separated Pace & HR GPX Generator</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
@@ -11,7 +11,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f8f9fa;
             color: #333;
-            max-width: 1000px;
+            max-width: 1050px;
             margin: 20px auto;
             padding: 20px;
             border-radius: 8px;
@@ -29,7 +29,7 @@
         }
         .panel {
             flex: 1;
-            min-width: 320px;
+            min-width: 330px;
             background: #fff;
             padding: 20px;
             border-radius: 6px;
@@ -42,19 +42,28 @@
             flex-direction: column;
         }
         #map {
-            height: 450px;
+            height: 520px;
             width: 100%;
             border-radius: 6px;
             border: 1px solid #ccc;
         }
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 4px;
+            margin-top: 15px;
+            margin-bottom: 12px;
+        }
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
         label {
             display: block;
             margin-bottom: 5px;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 12px;
         }
         input, select {
             width: 100%;
@@ -62,6 +71,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
             box-sizing: border-box;
+            font-size: 13px;
         }
         .stats-box {
             background: #eef2f3;
@@ -71,12 +81,12 @@
             font-size: 13px;
         }
         .stats-box p {
-            margin: 6px 0;
+            margin: 5px 0;
         }
         button {
             width: 100%;
             padding: 12px;
-            background-color: #e74c3c;
+            background-color: #fc4c02; /* Strava Orange */
             color: white;
             border: none;
             border-radius: 4px;
@@ -85,7 +95,7 @@
             cursor: pointer;
         }
         button:hover {
-            background-color: #c0392b;
+            background-color: #e04300;
         }
         .btn-secondary {
             background-color: #7f8c8d;
@@ -94,29 +104,30 @@
         .btn-secondary:hover {
             background-color: #626567;
         }
-        .btn-location {
-            background-color: #2980b9;
+        .btn-route-start {
+            background-color: #27ae60;
             margin-bottom: 8px;
         }
-        .btn-location:hover {
-            background-color: #1f618d;
+        .btn-route-start:hover {
+            background-color: #1e8449;
         }
         .info {
             font-size: 11px;
             color: #7f8c8d;
-            margin-top: 4px;
+            margin-top: 3px;
         }
     </style>
 </head>
 <body>
 
-    <h2>Route Planner & Pace Manager</h2>
+    <h2>Route Planner & GPX Telemetry Generator</h2>
     
     <div class="main-container">
-        <!-- Panel Kontrol & Pace Manager -->
+        <!-- Panel Kontrol -->
         <div class="panel">
+            
             <div class="form-group">
-                <label for="activityType">Jenis Aktivitas:</label>
+                <label for="activityType">Jenis Aktivitas Olahraga:</label>
                 <select id="activityType" onchange="updateDefaultPace()">
                     <option value="running">Berlari (Running)</option>
                     <option value="cycling">Bersepeda (Cycling)</option>
@@ -125,38 +136,102 @@
             </div>
 
             <div class="form-group">
-                <label for="startTime">Waktu Mulai:</label>
-                <input type="datetime-local" id="startTime">
+                <label for="deviceProfile">Profil Smartwatch:</label>
+                <select id="deviceProfile">
+                    <optgroup label="Morein">
+                        <option value="morein_rock2">Morein Rock 2 GPS</option>
+                    </optgroup>
+                    <optgroup label="Garmin">
+                        <option value="garmin_fr965">Garmin Forerunner 965</option>
+                        <option value="garmin_fenix7">Garmin Fenix 7 Pro</option>
+                    </optgroup>
+                    <optgroup label="Apple Watch">
+                        <option value="apple_ultra2">Apple Watch Ultra 2</option>
+                        <option value="apple_series9">Apple Watch Series 9</option>
+                    </optgroup>
+                    <optgroup label="COROS">
+                        <option value="coros_pace3">COROS Pace 3</option>
+                        <option value="coros_apex2">COROS Apex 2 Pro</option>
+                    </optgroup>
+                    <optgroup label="Suunto">
+                        <option value="suunto_race">Suunto Race</option>
+                    </optgroup>
+                    <optgroup label="Polar">
+                        <option value="polar_v3">Polar Vantage V3</option>
+                    </optgroup>
+                </select>
             </div>
 
             <div class="form-group">
-                <label for="pace">Pace Target (Menit / Kilometer):</label>
-                <input type="number" id="pace" value="5.5" step="0.1" min="0.5" oninput="calculateRouteStats()">
-                <div class="info">Contoh: 5.5 = 5 menit 30 detik per km.</div>
+                <label for="startTime">Waktu Mulai Aktivitas:</label>
+                <input type="datetime-local" id="startTime">
             </div>
 
-            <!-- Ringkasan Kalkulasi Rute & Pace -->
+            <!-- BAGIAN 1: PENGATURAN PACE -->
+            <div class="section-title">⏱️ Pengaturan Pace & Kecepatan</div>
+            
+            <div class="form-group">
+                <label for="pace">Target Pace Rata-Rata (Menit / Km):</label>
+                <input type="number" id="pace" value="5.5" step="0.1" min="0.5" oninput="calculateRouteStats()">
+                <div class="info">Contoh: 5.5 = 5 menit 30 detik / km.</div>
+            </div>
+
+            <div class="form-group">
+                <label for="paceStrategy">Pola Perubahan Pace:</label>
+                <select id="paceStrategy" onchange="calculateRouteStats()">
+                    <option value="constant">Konstan (Stabil Sepanjang Jalur)</option>
+                    <option value="negative">Negative Split (Awal Lambat ➔ Akhir Cepat)</option>
+                    <option value="positive">Positive Split (Awal Cepat ➔ Akhir Lambat)</option>
+                    <option value="interval">Interval / Variatif (Naik Turun Alami)</option>
+                </select>
+            </div>
+
+            <!-- BAGIAN 2: PENGATURAN HEART RATE (TERPISAH) -->
+            <div class="section-title">❤️ Pengaturan Heart Rate (Detak Jantung)</div>
+
+            <div class="form-group">
+                <label for="hrZone">Target Zona Detak Jantung:</label>
+                <select id="hrZone" onchange="calculateRouteStats()">
+                    <option value="auto">Otomatis (Sesuai Standar Olahraga)</option>
+                    <option value="z1">Zona 1: Pemulihan / Ringan (~100 - 120 BPM)</option>
+                    <option value="z2">Zona 2: Fat Burn / Daya Tahan (~120 - 140 BPM)</option>
+                    <option value="z3">Zona 3: Aerobik / Tempo (~140 - 160 BPM)</option>
+                    <option value="z4">Zona 4: Threshold / Anaerobik (~160 - 175 BPM)</option>
+                    <option value="z5">Zona 5: Maksimal / Peak (>175 BPM)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="hrPattern">Pola Karakteristik HR:</label>
+                <select id="hrPattern" onchange="calculateRouteStats()">
+                    <option value="dynamic">Dinamis (Merespons Pace + Cardiac Drift Kelelahan)</option>
+                    <option value="stable">Stabil (Rata dengan Fluktuasi Halus Sensor ±3 BPM)</option>
+                    <option value="progressive">Progressive (Merambat Naik Bertahap)</option>
+                </select>
+            </div>
+
+            <!-- RINGKASAN STATISTIK -->
             <div class="stats-box">
-                <strong>Pace Manager Summary:</strong>
+                <strong>Pace & HR Summary:</strong>
                 <p>Total Jarak: <span id="totalDistance">0.00</span> km</p>
                 <p>Estimasi Waktu: <span id="estDuration">0</span> menit</p>
                 <p>Kecepatan Rata-Rata: <span id="avgSpeed">0.0</span> km/jam</p>
+                <p>Estimasi HR Rata-Rata: <span id="estAvgHR">0</span> BPM</p>
                 <p>Estimasi Kalori: <span id="estCalories">0</span> kcal</p>
                 <p>Titik Rute (Waypoint): <span id="pointCount">0</span> titik</p>
             </div>
 
-            <!-- Tombol Navigasi & Lokasi -->
-            <button class="btn-location" onclick="goToCurrentLocation()">📍 Ke Lokasi Saya Sekarang</button>
+            <button class="btn-route-start" onclick="goToCurrentLocation()">🗺️ Set Titik Awal Rute (Lokasi Saat Ini)</button>
             <button class="btn-secondary" onclick="undoLastPoint()">Hapus Titik Terakhir</button>
             <button class="btn-secondary" onclick="clearRoute()">Reset Rute</button>
-            <button onclick="generateGPX()">Download File GPX</button>
+            <button onclick="generateGPX()">Download File GPX (Strava Ready)</button>
         </div>
 
         <!-- Panel Peta Interaktif -->
         <div class="map-panel">
             <div id="map"></div>
             <div class="info" style="margin-top: 8px;">
-                💡 <strong>Cara Pakai:</strong> Klik beberapa kali di peta untuk membuat jalur/rute latihan Anda secara berurutan.
+                💡 <strong>Cara Pakai:</strong> Klik pada peta secara berurutan untuk membuat rute. Sistem akan merangkai telemetry GPS, Pace, dan Heart Rate per 1 detik.
             </div>
         </div>
     </div>
@@ -168,10 +243,8 @@
         let waypoints = [];
         let polyline = null;
         let markers = [];
-        let myLocationMarker = null;
 
         function initMap() {
-            // Default center di Jakarta
             map = L.map('map').setView([-6.2088, 106.8456], 13);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -179,56 +252,41 @@
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
-            // Event klik peta untuk menambah rute
             map.on('click', function(e) {
                 addWaypoint(e.latlng);
             });
         }
 
-        // Fungsi untuk mengambil dan mengarahkan peta ke lokasi GPS saat ini
         function goToCurrentLocation() {
             if ("geolocation" in navigator) {
                 navigator.geolocation.getCurrentPosition(
                     function(position) {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
-                        const userLatLng = [lat, lng];
+                        const userLatLng = L.latLng(lat, lng);
 
-                        // Pindahkan peta dengan efek animasi
                         map.flyTo(userLatLng, 16);
-
-                        // Hapus marker lokasi lama jika ada
-                        if (myLocationMarker) {
-                            map.removeLayer(myLocationMarker);
-                        }
-
-                        // Tambahkan marker penanda lokasi saat ini
-                        myLocationMarker = L.circleMarker(userLatLng, {
-                            radius: 8,
-                            fillColor: "#3498db",
-                            color: "#ffffff",
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.9
-                        }).addTo(map).bindPopup("Lokasi Anda Saat Ini").openPopup();
+                        addWaypoint(userLatLng);
                     },
                     function(error) {
-                        alert("Gagal mengambil lokasi: " + error.message + ". Pastikan izin lokasi/GPS di browser telah diizinkan.");
+                        alert("Gagal mengambil lokasi: " + error.message + ". Pastikan izin GPS telah diizinkan.");
                     },
                     { enableHighAccuracy: true }
                 );
             } else {
-                alert("Browser Anda tidak mendukung layanan Geolocation.");
+                alert("Browser Anda tidak mendukung Geolocation.");
             }
         }
 
         function addWaypoint(latlng) {
             waypoints.push(latlng);
-            
-            // Tambahkan marker ke peta
             let marker = L.marker(latlng).addTo(map);
+            
+            if (waypoints.length === 1) {
+                marker.bindPopup("🚩 Titik Awal Rute").openPopup();
+            }
+            
             markers.push(marker);
-
             updateRouteLine();
             calculateRouteStats();
         }
@@ -239,7 +297,7 @@
             }
             if (waypoints.length > 0) {
                 let latlngs = waypoints.map(wp => [wp.lat, wp.lng]);
-                polyline = L.polyline(latlngs, { color: '#e74c3c', weight: 4 }).addTo(map);
+                polyline = L.polyline(latlngs, { color: '#fc4c02', weight: 4 }).addTo(map);
             }
         }
 
@@ -261,9 +319,8 @@
             calculateRouteStats();
         }
 
-        // Hitung Jarak total antar titik (Haversine Formula sederhana)
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            let R = 6371; // Radius bumi dalam km
+            let R = 6371; 
             let dLat = (lat2 - lat1) * Math.PI / 180;
             let dLon = (lon2 - lon1) * Math.PI / 180;
             let a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -273,34 +330,124 @@
             return R * c;
         }
 
+        // PERHITUNGAN PACE DINAMIS INDEPENDEN
+        function getDynamicPace(basePace, progressFraction, strategy) {
+            if (strategy === 'negative') {
+                let factor = 1.15 - (0.30 * progressFraction);
+                return basePace * factor;
+            } else if (strategy === 'positive') {
+                let factor = 0.85 + (0.30 * progressFraction);
+                return basePace * factor;
+            } else if (strategy === 'interval') {
+                let factor = 1.0 + (Math.sin(progressFraction * Math.PI * 6) * 0.12);
+                return basePace * factor;
+            }
+            return basePace; 
+        }
+
+        // PERHITUNGAN HEART RATE TERPISAH
+        function calculateIndependentHR(activityType, hrZone, hrPattern, basePace, currentPace, elapsedSec, totalDurationSec, progressFraction) {
+            let baseHR = 145;
+            let minHR = 100;
+            let maxHR = 180;
+
+            // 1. Tentukan Baseline HR Berdasarkan Zona yang Dipilih
+            if (hrZone === 'auto') {
+                if (activityType === 'running') { baseHR = 150; minHR = 115; maxHR = 188; }
+                else if (activityType === 'cycling') { baseHR = 135; minHR = 98; maxHR = 175; }
+                else if (activityType === 'walking') { baseHR = 105; minHR = 80; maxHR = 135; }
+            } else if (hrZone === 'z1') { baseHR = 110; minHR = 95;  maxHR = 120; }
+            else if (hrZone === 'z2') { baseHR = 130; minHR = 118; maxHR = 140; }
+            else if (hrZone === 'z3') { baseHR = 150; minHR = 138; maxHR = 160; }
+            else if (hrZone === 'z4') { baseHR = 168; minHR = 158; maxHR = 175; }
+            else if (hrZone === 'z5') { baseHR = 182; minHR = 174; maxHR = 195; }
+
+            // 2. Terapkan Pola Karakteristik HR yang Dipilih
+            let calculatedHR = baseHR;
+
+            if (hrPattern === 'dynamic') {
+                // Warmup + Respon Usaha Pace + Cardiac Drift
+                let warmupFactor = Math.min(elapsedSec / 180, 1.0);
+                let warmUpHR = minHR + (baseHR - minHR) * warmupFactor;
+                let effortRatio = basePace / Math.max(currentPace, 0.1);
+                let effortAdjustment = (effortRatio - 1.0) * 20;
+                let fatigueDrift = progressFraction * 10;
+                calculatedHR = warmUpHR + effortAdjustment + fatigueDrift;
+            } 
+            else if (hrPattern === 'progressive') {
+                // Merambat naik konstan dari awal hingga akhir latihan
+                let warmupFactor = Math.min(elapsedSec / 120, 1.0);
+                let startHR = minHR + (baseHR - minHR - 15) * warmupFactor;
+                let rampUp = progressFraction * 25; // Naik +25 BPM sepanjang rute
+                calculatedHR = startHR + rampUp;
+            } 
+            else if (hrPattern === 'stable') {
+                // Stabil mengambang di sekitar target baseHR
+                let warmupFactor = Math.min(elapsedSec / 60, 1.0);
+                calculatedHR = minHR + (baseHR - minHR) * warmupFactor;
+            }
+
+            // Fluktuasi acak sensor optik
+            let sensorNoise = (Math.random() - 0.5) * 3;
+            let finalHR = Math.round(calculatedHR + sensorNoise);
+
+            return Math.min(Math.max(finalHR, minHR), maxHR);
+        }
+
         function calculateRouteStats() {
             let totalDist = 0;
             for (let i = 0; i < waypoints.length - 1; i++) {
                 totalDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
             }
 
-            let pace = parseFloat(document.getElementById('pace').value) || 5.0;
-            let estMinutes = totalDist * pace;
-
-            // Hitung Kecepatan Rata-Rata (km/jam)
-            let avgSpeed = pace > 0 ? (60 / pace) : 0;
-
-            // Hitung Kalori (Berdasarkan nilai MET sederhana untuk BB rata-rata ~65kg)
+            let basePace = parseFloat(document.getElementById('pace').value) || 5.0;
+            let paceStrategy = document.getElementById('paceStrategy').value;
             let activityType = document.getElementById('activityType').value;
-            let met = 8; // Default
+            let hrZone = document.getElementById('hrZone').value;
+            
+            let estMinutes = 0;
+            let accumulatedDist = 0;
+
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                let segDist = calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+                let progress = totalDist > 0 ? (accumulatedDist + segDist / 2) / totalDist : 0;
+                let currentPace = getDynamicPace(basePace, progress, paceStrategy);
+                
+                estMinutes += segDist * currentPace;
+                accumulatedDist += segDist;
+            }
+
+            let avgSpeed = basePace > 0 ? (60 / basePace) : 0;
+
+            // Perkiraan HR Rata-Rata untuk Tampilan Ringkasan
+            let estAvgHR = 145;
+            if (hrZone === 'auto') {
+                if (activityType === 'running') estAvgHR = 152;
+                else if (activityType === 'cycling') estAvgHR = 135;
+                else if (activityType === 'walking') estAvgHR = 105;
+            } else if (hrZone === 'z1') estAvgHR = 110;
+            else if (hrZone === 'z2') estAvgHR = 130;
+            else if (hrZone === 'z3') estAvgHR = 150;
+            else if (hrZone === 'z4') estAvgHR = 168;
+            else if (hrZone === 'z5') estAvgHR = 182;
+
+            let met = 8;
             if (activityType === 'running') met = 9.8;
             else if (activityType === 'cycling') met = 7.5;
             else if (activityType === 'walking') met = 3.8;
 
-            let weightKg = 65; // Berat badan standar
+            let weightKg = 65;
             let durationHours = estMinutes / 60;
             let caloriesBurned = Math.round(met * weightKg * durationHours);
 
             document.getElementById('totalDistance').innerText = totalDist.toFixed(2);
             document.getElementById('estDuration').innerText = Math.round(estMinutes);
             document.getElementById('avgSpeed').innerText = avgSpeed.toFixed(1);
+            document.getElementById('estAvgHR').innerText = estAvgHR;
             document.getElementById('estCalories').innerText = caloriesBurned;
             document.getElementById('pointCount').innerText = waypoints.length;
+
+            return { totalDist, estMinutes, avgSpeed, caloriesBurned, estAvgHR };
         }
 
         function updateDefaultPace() {
@@ -320,53 +467,184 @@
             updateDefaultPace();
         };
 
+        function getDeviceConfig(brandKey) {
+            const configs = {
+                morein_rock2: {
+                    creator: "Morein Rock 2 GPS - v2.0.4",
+                    author: "Morein Sports Sync",
+                    model: "Morein Rock 2 GPS",
+                    id: "MOREIN-RK2-8821",
+                    sw: "2.0.4"
+                },
+                garmin_fr965: {
+                    creator: "Garmin Forerunner 965 - v18.23",
+                    author: "Garmin Connect Sync",
+                    model: "Forerunner 965",
+                    id: "3458920194",
+                    sw: "18.23"
+                },
+                garmin_fenix7: {
+                    creator: "Garmin Fenix 7 Pro - v16.22",
+                    author: "Garmin Connect Sync",
+                    model: "Fenix 7 Pro Sapphire Solar",
+                    id: "3981204918",
+                    sw: "16.22"
+                },
+                apple_ultra2: {
+                    creator: "Apple Watch Ultra 2 - watchOS 10.4",
+                    author: "Apple Health Strava Sync",
+                    model: "Apple Watch Ultra 2",
+                    id: "AW-ULTRA2-8921",
+                    sw: "10.4.0"
+                },
+                coros_pace3: {
+                    creator: "COROS Pace 3 - v3.04",
+                    author: "COROS App Strava Sync",
+                    model: "Pace 3",
+                    id: "COROS-P3-7721",
+                    sw: "3.04.0"
+                },
+                suunto_race: {
+                    creator: "Suunto Race - v2.33.12",
+                    author: "Suunto App Sync",
+                    model: "Suunto Race",
+                    id: "SUUNTO-RACE-0012",
+                    sw: "2.33.12"
+                },
+                polar_v3: {
+                    creator: "Polar Vantage V3 - v2.1.0",
+                    author: "Polar Flow Strava Sync",
+                    model: "Vantage V3",
+                    id: "POLAR-VV3-9081",
+                    sw: "2.1.0"
+                }
+            };
+            return configs[brandKey] || configs.morein_rock2;
+        }
+
         function generateGPX() {
             if (waypoints.length < 2) {
                 alert("Silakan buat rute di peta minimal dengan 2 titik klik!");
                 return;
             }
 
+            const stats = calculateRouteStats();
             const activityType = document.getElementById('activityType').value;
+            const deviceBrandKey = document.getElementById('deviceProfile').value;
+            const deviceConfig = getDeviceConfig(deviceBrandKey);
+
             const startTimeStr = document.getElementById('startTime').value;
-            const paceMinPerKm = parseFloat(document.getElementById('pace').value);
+            const basePace = parseFloat(document.getElementById('pace').value);
+            const paceStrategy = document.getElementById('paceStrategy').value;
+            const hrZone = document.getElementById('hrZone').value;
+            const hrPattern = document.getElementById('hrPattern').value;
 
             let startTime = new Date(startTimeStr);
             let trackPointsXML = "";
-            let currentTimeSec = 0;
+            let currentTimestamp = new Date(startTime.getTime());
 
-            // Interpolasi titik agar mulus berdasarkan pace
+            // Hitung total jarak rute
+            let totalRouteDist = 0;
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                totalRouteDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+            }
+
+            let totalDurationSec = (totalRouteDist * basePace) * 60;
+            let coveredDist = 0;
+            let currentElevation = 18.0; 
+            let totalElapsedSec = 0;
+
+            // Rekam setiap segmen jalanan
             for (let i = 0; i < waypoints.length - 1; i++) {
                 let p1 = waypoints[i];
                 let p2 = waypoints[i+1];
-                let segmentDist = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-                let segmentTimeSec = segmentDist * paceMinPerKm * 60; // Waktu untuk segmen ini
-                
-                // Pecah segmen menjadi sub-titik agar interval waktu dan pergerakan akurat
-                let steps = Math.max(Math.floor(segmentDist * 20), 2); // ~20 titik per km
-                
-                for (let s = 0; s <= steps; s++) {
-                    let fraction = s / steps;
-                    let curLat = p1.lat + (p2.lat - p1.lat) * fraction;
-                    let curLon = p1.lng + (p2.lng - p1.lng) * fraction;
-                    let curTime = new Date(startTime.getTime() + (currentTimeSec + (segmentTimeSec * fraction)) * 1000);
-                    let elevation = 20 + Math.sin(currentTimeSec / 100) * 10;
+                let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+                let segDistMeters = segDistKm * 1000;
 
-                    // Hindari duplikat timestamp berurutan
-                    if (s === 0 && i > 0) continue; 
+                let progressFraction = totalRouteDist > 0 ? coveredDist / totalRouteDist : 0;
+                let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
+                let speedMetersPerSec = 1000 / (segPace * 60);
+                
+                let segDurationSec = Math.round(segDistMeters / speedMetersPerSec);
+
+                // Buat titik per 1 detik
+                for (let sec = 0; sec <= segDurationSec; sec++) {
+                    if (sec === 0 && i > 0) continue;
+
+                    let fraction = sec / segDurationSec;
+                    
+                    let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
+                    let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
+
+                    // Micro-Jitter GPS noise
+                    let latNoise = (Math.random() - 0.5) * 0.000006;
+                    let lngNoise = (Math.random() - 0.5) * 0.000006;
+                    let curLat = rawLat + latNoise;
+                    let curLng = rawLng + lngNoise;
+
+                    currentElevation += (Math.random() - 0.48) * 0.15;
+
+                    // Hitung Heart Rate Independen
+                    let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
+                    let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
+
+                    // Kadensi Langkah / Kayuhan Dinamis
+                    let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
+                    let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
+                    let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
+
+                    let pointTime = new Date(currentTimestamp.getTime() + (sec * 1000));
 
                     trackPointsXML += `
-    <trkpt lat="${curLat.toFixed(6)}" lon="${curLon.toFixed(6)}">
-        <ele>${elevation.toFixed(1)}</ele>
-        <time>${curTime.toISOString()}</time>
-    </trkpt>`;
+      <trkpt lat="${curLat.toFixed(6)}" lon="${curLon.toFixed(6)}">
+        <ele>${currentElevation.toFixed(1)}</ele>
+        <time>${pointTime.toISOString()}</time>
+        <extensions>
+          <gpxtpx:TrackPointExtension>
+            <gpxtpx:hr>${heartRate}</gpxtpx:hr>
+            <gpxtpx:cad>${cadence}</gpxtpx:cad>
+          </gpxtpx:TrackPointExtension>
+        </extensions>
+      </trkpt>`;
                 }
-                currentTimeSec += segmentTimeSec;
+
+                totalElapsedSec += segDurationSec;
+                currentTimestamp = new Date(currentTimestamp.getTime() + (segDurationSec * 1000));
+                coveredDist += segDistKm;
             }
 
+            const generatedAt = new Date().toISOString();
+
             let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Route Planner & Pace Manager" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" 
+     creator="${deviceConfig.creator}" 
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
+    <name>${activityType.toUpperCase()} - ${startTime.toLocaleDateString()}</name>
+    <desc>Independent Pace & HR telemetry generated for ${deviceConfig.model}.</desc>
+    <author>
+      <name>${deviceConfig.author}</name>
+    </author>
+    <copyright author="${deviceConfig.author}">
+      <year>${new Date().getFullYear()}</year>
+    </copyright>
     <time>${startTime.toISOString()}</time>
+    <keywords>${activityType}, strava-ready, pace-${paceStrategy}, hr-${hrZone}-${hrPattern}</keywords>
+    <extensions>
+      <device_model>${deviceConfig.model}</device_model>
+      <device_id>${deviceConfig.id}</device_id>
+      <software_version>${deviceConfig.sw}</software_version>
+      <generated_at>${generatedAt}</generated_at>
+      <pace_strategy>${paceStrategy}</pace_strategy>
+      <hr_zone>${hrZone}</hr_zone>
+      <hr_pattern>${hrPattern}</hr_pattern>
+      <estimated_calories_kcal>${stats.caloriesBurned}</estimated_calories_kcal>
+      <avg_speed_kmh>${stats.avgSpeed.toFixed(1)}</avg_speed_kmh>
+      <total_distance_km>${stats.totalDist.toFixed(2)}</total_distance_km>
+    </extensions>
   </metadata>
   <trk>
     <name>${activityType.toUpperCase()} - ${startTime.toLocaleDateString()}</name>
@@ -381,7 +659,7 @@ ${trackPointsXML}
             let url = URL.createObjectURL(blob);
             let a = document.createElement('a');
             a.href = url;
-            a.download = `${activityType}_route_${startTime.toISOString().slice(0,10)}.gpx`;
+            a.download = `${activityType}_${deviceBrandKey}_separated_pace_hr_${startTime.toISOString().slice(0,10)}.gpx`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
