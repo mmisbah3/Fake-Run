@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Route Planner - Separated Pace & HR GPX Generator</title>
+    <title>Route Planner & GPX Telemetry Generator</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <style>
@@ -42,26 +42,26 @@
             flex-direction: column;
         }
         #map {
-            height: 520px;
+            height: 540px;
             width: 100%;
             border-radius: 6px;
             border: 1px solid #ccc;
         }
         .section-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             color: #2c3e50;
             border-bottom: 2px solid #ecf0f1;
             padding-bottom: 4px;
             margin-top: 15px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         .form-group {
             margin-bottom: 12px;
         }
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
             font-weight: 600;
             font-size: 12px;
         }
@@ -136,7 +136,7 @@
             </div>
 
             <div class="form-group">
-                <label for="deviceProfile">Profil Smartwatch:</label>
+                <label for="deviceProfile">Profil Smartwatch (Strava Sync Compatible):</label>
                 <select id="deviceProfile">
                     <optgroup label="Morein">
                         <option value="morein_rock2">Morein Rock 2 GPS</option>
@@ -366,7 +366,6 @@
             let calculatedHR = baseHR;
 
             if (hrPattern === 'dynamic') {
-                // Warmup + Respon Usaha Pace + Cardiac Drift
                 let warmupFactor = Math.min(elapsedSec / 180, 1.0);
                 let warmUpHR = minHR + (baseHR - minHR) * warmupFactor;
                 let effortRatio = basePace / Math.max(currentPace, 0.1);
@@ -375,14 +374,12 @@
                 calculatedHR = warmUpHR + effortAdjustment + fatigueDrift;
             } 
             else if (hrPattern === 'progressive') {
-                // Merambat naik konstan dari awal hingga akhir latihan
                 let warmupFactor = Math.min(elapsedSec / 120, 1.0);
                 let startHR = minHR + (baseHR - minHR - 15) * warmupFactor;
-                let rampUp = progressFraction * 25; // Naik +25 BPM sepanjang rute
+                let rampUp = progressFraction * 25;
                 calculatedHR = startHR + rampUp;
             } 
             else if (hrPattern === 'stable') {
-                // Stabil mengambang di sekitar target baseHR
                 let warmupFactor = Math.min(elapsedSec / 60, 1.0);
                 calculatedHR = minHR + (baseHR - minHR) * warmupFactor;
             }
@@ -419,7 +416,6 @@
 
             let avgSpeed = basePace > 0 ? (60 / basePace) : 0;
 
-            // Perkiraan HR Rata-Rata untuk Tampilan Ringkasan
             let estAvgHR = 145;
             if (hrZone === 'auto') {
                 if (activityType === 'running') estAvgHR = 152;
@@ -523,79 +519,88 @@
         }
 
         function generateGPX() {
+            // 1. Validasi Minimal Titik Rute
             if (waypoints.length < 2) {
-                alert("Silakan buat rute di peta minimal dengan 2 titik klik!");
+                alert("⚠️ Rute Belum Dibuat!\nSilakan klik minimal 2 titik di peta untuk membuat jalur latihan.");
                 return;
             }
 
-            const stats = calculateRouteStats();
-            const activityType = document.getElementById('activityType').value;
-            const deviceBrandKey = document.getElementById('deviceProfile').value;
-            const deviceConfig = getDeviceConfig(deviceBrandKey);
-
-            const startTimeStr = document.getElementById('startTime').value;
-            const basePace = parseFloat(document.getElementById('pace').value);
-            const paceStrategy = document.getElementById('paceStrategy').value;
-            const hrZone = document.getElementById('hrZone').value;
-            const hrPattern = document.getElementById('hrPattern').value;
-
-            let startTime = new Date(startTimeStr);
-            let trackPointsXML = "";
-            let currentTimestamp = new Date(startTime.getTime());
-
-            // Hitung total jarak rute
-            let totalRouteDist = 0;
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                totalRouteDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+            // 2. Validasi Waktu Mulai
+            const startTimeInput = document.getElementById('startTime').value;
+            if (!startTimeInput) {
+                alert("⚠️ Waktu Mulai Kosong!\nSilakan isi tanggal dan jam waktu mulai latihan terlebih dahulu.");
+                return;
             }
 
-            let totalDurationSec = (totalRouteDist * basePace) * 60;
-            let coveredDist = 0;
-            let currentElevation = 18.0; 
-            let totalElapsedSec = 0;
+            try {
+                const stats = calculateRouteStats();
+                const activityType = document.getElementById('activityType').value;
+                const deviceBrandKey = document.getElementById('deviceProfile').value;
+                const deviceConfig = getDeviceConfig(deviceBrandKey);
 
-            // Rekam setiap segmen jalanan
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                let p1 = waypoints[i];
-                let p2 = waypoints[i+1];
-                let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-                let segDistMeters = segDistKm * 1000;
+                const basePace = parseFloat(document.getElementById('pace').value) || 5.5;
+                const paceStrategy = document.getElementById('paceStrategy').value;
+                const hrZone = document.getElementById('hrZone').value;
+                const hrPattern = document.getElementById('hrPattern').value;
 
-                let progressFraction = totalRouteDist > 0 ? coveredDist / totalRouteDist : 0;
-                let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
-                let speedMetersPerSec = 1000 / (segPace * 60);
-                
-                let segDurationSec = Math.round(segDistMeters / speedMetersPerSec);
+                let startTime = new Date(startTimeInput);
+                let trackPointsXML = "";
+                let currentTimestamp = new Date(startTime.getTime());
 
-                // Buat titik per 1 detik
-                for (let sec = 0; sec <= segDurationSec; sec++) {
-                    if (sec === 0 && i > 0) continue;
+                // Hitung total jarak rute
+                let totalRouteDist = 0;
+                for (let i = 0; i < waypoints.length - 1; i++) {
+                    totalRouteDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+                }
 
-                    let fraction = sec / segDurationSec;
+                let totalDurationSec = (totalRouteDist * basePace) * 60;
+                let coveredDist = 0;
+                let currentElevation = 18.0; 
+                let totalElapsedSec = 0;
+
+                // Rekam setiap segmen jalanan
+                for (let i = 0; i < waypoints.length - 1; i++) {
+                    let p1 = waypoints[i];
+                    let p2 = waypoints[i+1];
+                    let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+                    let segDistMeters = segDistKm * 1000;
+
+                    let progressFraction = totalRouteDist > 0 ? coveredDist / totalRouteDist : 0;
+                    let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
+                    let speedMetersPerSec = 1000 / (segPace * 60);
                     
-                    let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
-                    let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
+                    let segDurationSec = Math.round(segDistMeters / speedMetersPerSec);
 
-                    // Micro-Jitter GPS noise
-                    let latNoise = (Math.random() - 0.5) * 0.000006;
-                    let lngNoise = (Math.random() - 0.5) * 0.000006;
-                    let curLat = rawLat + latNoise;
-                    let curLng = rawLng + lngNoise;
+                    // Buat titik per 1 detik
+                    for (let sec = 0; sec <= segDurationSec; sec++) {
+                        if (sec === 0 && i > 0) continue;
 
-                    currentElevation += (Math.random() - 0.48) * 0.15;
+                        let fraction = segDurationSec > 0 ? (sec / segDurationSec) : 0;
+                        
+                        let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
+                        let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
 
-                    // Hitung Heart Rate Independen
-                    let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
-                    let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
+                        // Micro-Jitter GPS noise
+                        let latNoise = (Math.random() - 0.5) * 0.000006;
+                        let lonNoise = (Math.random() - 0.5) * 0.000006;
+                        
+                        let curLat = rawLat + latNoise;
+                        let curLon = rawLng + lonNoise; // Variabel diseragamkan: curLon
 
-                    // Kadensi Langkah / Kayuhan Dinamis
-                    let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
-                    let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
-                    let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
+                        currentElevation += (Math.random() - 0.48) * 0.15;
 
-                    let pointTime = new Date(currentTimestamp.getTime() + (sec * 1000));
+                        // Hitung Heart Rate Independen
+                        let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
+                        let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
 
-                    trackPointsXML += `
+                        // Kadensi Langkah / Kayuhan Dinamis
+                        let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
+                        let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
+                        let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
+
+                        let pointTime = new Date(currentTimestamp.getTime() + (sec * 1000));
+
+                        trackPointsXML += `
       <trkpt lat="${curLat.toFixed(6)}" lon="${curLon.toFixed(6)}">
         <ele>${currentElevation.toFixed(1)}</ele>
         <time>${pointTime.toISOString()}</time>
@@ -606,16 +611,16 @@
           </gpxtpx:TrackPointExtension>
         </extensions>
       </trkpt>`;
+                    }
+
+                    totalElapsedSec += segDurationSec;
+                    currentTimestamp = new Date(currentTimestamp.getTime() + (segDurationSec * 1000));
+                    coveredDist += segDistKm;
                 }
 
-                totalElapsedSec += segDurationSec;
-                currentTimestamp = new Date(currentTimestamp.getTime() + (segDurationSec * 1000));
-                coveredDist += segDistKm;
-            }
+                const generatedAt = new Date().toISOString();
 
-            const generatedAt = new Date().toISOString();
-
-            let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
+                let gpxContent = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" 
      creator="${deviceConfig.creator}" 
      xmlns="http://www.topografix.com/GPX/1/1"
@@ -655,15 +660,25 @@ ${trackPointsXML}
   </trk>
 </gpx>`;
 
-            let blob = new Blob([gpxContent], { type: 'application/gpx+xml' });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.href = url;
-            a.download = `${activityType}_${deviceBrandKey}_separated_pace_hr_${startTime.toISOString().slice(0,10)}.gpx`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+                // Pemicu Download File GPX Aman
+                let blob = new Blob([gpxContent], { type: 'application/gpx+xml;charset=utf-8;' });
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `${activityType}_${deviceBrandKey}_${startTime.toISOString().slice(0,10)}.gpx`;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+
+            } catch (err) {
+                alert("❌ Terjadi kesalahan saat memproses GPX: " + err.message);
+            }
         }
     </script>
 </body>
