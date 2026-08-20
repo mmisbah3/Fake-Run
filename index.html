@@ -42,7 +42,7 @@
             flex-direction: column;
         }
         #map {
-            height: 540px;
+            height: 600px;
             width: 100%;
             border-radius: 6px;
             border: 1px solid #ccc;
@@ -116,6 +116,13 @@
             color: #7f8c8d;
             margin-top: 3px;
         }
+        .loading-status {
+            font-size: 12px;
+            color: #2980b9;
+            font-weight: 600;
+            display: none;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -133,6 +140,25 @@
                     <option value="cycling">Bersepeda (Cycling)</option>
                     <option value="walking">Berjalan (Walking)</option>
                 </select>
+            </div>
+
+            <!-- OPSI ROUTING & PENGHALUS TIKUNGAN -->
+            <div class="form-group">
+                <label for="routingMode">Mode Pembuatan Rute:</label>
+                <select id="routingMode">
+                    <option value="auto">🚗 Otomatis Mengikuti Jalan (Auto Snap-to-Road)</option>
+                    <option value="manual">📏 Manual Garis Lurus (Off-Road / Jalur Bebas)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="cornerSmoothing">Kelengkungan Tikungan (Fillet Curve):</label>
+                <select id="cornerSmoothing" onchange="updateRouteCoordinates()">
+                    <option value="medium">Lengkung Alami (Natural Rounding)</option>
+                    <option value="high">Lengkung Halus Lebar (Smooth Sweep)</option>
+                    <option value="none">Sudut Tajam Asli (Tanpa Smoothing)</option>
+                </select>
+                <div class="info">Mencegah belokan patah 90° agar lintasan terlihat natural.</div>
             </div>
 
             <div class="form-group">
@@ -186,7 +212,7 @@
                 </select>
             </div>
 
-            <!-- BAGIAN 2: PENGATURAN HEART RATE (TERPISAH) -->
+            <!-- BAGIAN 2: PENGATURAN HEART RATE -->
             <div class="section-title">❤️ Pengaturan Heart Rate (Detak Jantung)</div>
 
             <div class="form-group">
@@ -210,6 +236,9 @@
                 </select>
             </div>
 
+            <!-- STATUS LOADING ROUTING -->
+            <div id="loadingStatus" class="loading-status">🔄 Mengkalkulasi jalur & menghaluskan tikungan...</div>
+
             <!-- RINGKASAN STATISTIK -->
             <div class="stats-box">
                 <strong>Pace & HR Summary:</strong>
@@ -218,7 +247,7 @@
                 <p>Kecepatan Rata-Rata: <span id="avgSpeed">0.0</span> km/jam</p>
                 <p>Estimasi HR Rata-Rata: <span id="estAvgHR">0</span> BPM</p>
                 <p>Estimasi Kalori: <span id="estCalories">0</span> kcal</p>
-                <p>Titik Rute (Waypoint): <span id="pointCount">0</span> titik</p>
+                <p>Titik Klik Waypoint: <span id="pointCount">0</span> titik</p>
             </div>
 
             <button class="btn-route-start" onclick="goToCurrentLocation()">🗺️ Set Titik Awal Rute (Lokasi Saat Ini)</button>
@@ -231,7 +260,7 @@
         <div class="map-panel">
             <div id="map"></div>
             <div class="info" style="margin-top: 8px;">
-                💡 <strong>Cara Pakai:</strong> Klik pada peta secara berurutan untuk membuat rute. Sistem akan merangkai telemetry GPS, Pace, dan Heart Rate per 1 detik.
+                💡 <strong>Cara Pakai:</strong> Klik beberapa titik di peta. Tikungan $90^\circ$ akan secara otomatis dibuat melengkung halus.
             </div>
         </div>
     </div>
@@ -240,7 +269,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         let map;
-        let waypoints = [];
+        let waypoints = [];       
+        let routeCoordinates = []; 
         let polyline = null;
         let markers = [];
 
@@ -278,7 +308,7 @@
             }
         }
 
-        function addWaypoint(latlng) {
+        async function addWaypoint(latlng) {
             waypoints.push(latlng);
             let marker = L.marker(latlng).addTo(map);
             
@@ -287,6 +317,84 @@
             }
             
             markers.push(marker);
+            await updateRouteCoordinates();
+        }
+
+        // FUNGSI UTAMA PENGHALUS TIKUNGAN (CORNER BEZIER FILLET)
+        function smoothCorners(coords, smoothingMode) {
+            if (smoothingMode === 'none' || coords.length < 3) return coords;
+
+            let filletRatio = smoothingMode === 'high' ? 0.35 : 0.20; // Seberapa jauh memotong sudut
+            let smoothed = [];
+            smoothed.push(coords[0]);
+
+            for (let i = 1; i < coords.length - 1; i++) {
+                let p0 = coords[i - 1]; // Titik sebelum sudut
+                let p1 = coords[i];     // Titik sudut (misal 90 derajat)
+                let p2 = coords[i + 1]; // Titik setelah sudut
+
+                // Titik potong sebelum sudut (Q0)
+                let q0_lat = p1[0] - (p1[0] - p0[0]) * filletRatio;
+                let q0_lng = p1[1] - (p1[1] - p0[1]) * filletRatio;
+
+                // Titik potong sesudah sudut (Q1)
+                let q1_lat = p1[0] + (p2[0] - p1[0]) * filletRatio;
+                let q1_lng = p1[1] + (p2[1] - p1[1]) * filletRatio;
+
+                // Buat 5 sub-titik lengkung menggunakan Quadratic Bézier
+                for (let t = 0; t <= 1; t += 0.25) {
+                    let lat = (1 - t) * (1 - t) * q0_lat + 2 * (1 - t) * t * p1[0] + t * t * q1_lat;
+                    let lng = (1 - t) * (1 - t) * q0_lng + 2 * (1 - t) * t * p1[1] + t * t * q1_lng;
+                    smoothed.push([lat, lng]);
+                }
+            }
+
+            smoothed.push(coords[coords.length - 1]);
+            return smoothed;
+        }
+
+        // UPDATE JALUR (OSRM / MANUAL) DENGAN AUTO SMOOTHING
+        async function updateRouteCoordinates() {
+            if (waypoints.length < 2) {
+                routeCoordinates = waypoints.map(wp => [wp.lat, wp.lng]);
+                updateRouteLine();
+                calculateRouteStats();
+                return;
+            }
+
+            const routingMode = document.getElementById('routingMode').value;
+            const smoothingMode = document.getElementById('cornerSmoothing').value;
+            let rawCoords = [];
+
+            if (routingMode === 'auto') {
+                const loading = document.getElementById('loadingStatus');
+                loading.style.display = 'block';
+
+                try {
+                    const coordsString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
+                    const url = `https://router.project-osrm.org/route/v1/foot/${coordsString}?overview=full&geometries=geojson`;
+
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                        rawCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    } else {
+                        rawCoords = waypoints.map(wp => [wp.lat, wp.lng]);
+                    }
+                } catch (e) {
+                    console.warn("Gagal menghubungi OSRM, beralih ke manual:", e);
+                    rawCoords = waypoints.map(wp => [wp.lat, wp.lng]);
+                } finally {
+                    loading.style.display = 'none';
+                }
+            } else {
+                rawCoords = waypoints.map(wp => [wp.lat, wp.lng]);
+            }
+
+            // Terapkan penghalusan sudut belokan
+            routeCoordinates = smoothCorners(rawCoords, smoothingMode);
+
             updateRouteLine();
             calculateRouteStats();
         }
@@ -295,24 +403,23 @@
             if (polyline) {
                 map.removeLayer(polyline);
             }
-            if (waypoints.length > 0) {
-                let latlngs = waypoints.map(wp => [wp.lat, wp.lng]);
-                polyline = L.polyline(latlngs, { color: '#fc4c02', weight: 4 }).addTo(map);
+            if (routeCoordinates.length > 0) {
+                polyline = L.polyline(routeCoordinates, { color: '#fc4c02', weight: 5, opacity: 0.85 }).addTo(map);
             }
         }
 
-        function undoLastPoint() {
+        async function undoLastPoint() {
             if (waypoints.length > 0) {
                 waypoints.pop();
                 let lastMarker = markers.pop();
                 map.removeLayer(lastMarker);
-                updateRouteLine();
-                calculateRouteStats();
+                await updateRouteCoordinates();
             }
         }
 
         function clearRoute() {
             waypoints = [];
+            routeCoordinates = [];
             markers.forEach(m => map.removeLayer(m));
             markers = [];
             if (polyline) map.removeLayer(polyline);
@@ -330,7 +437,6 @@
             return R * c;
         }
 
-        // PERHITUNGAN PACE DINAMIS INDEPENDEN
         function getDynamicPace(basePace, progressFraction, strategy) {
             if (strategy === 'negative') {
                 let factor = 1.15 - (0.30 * progressFraction);
@@ -345,13 +451,11 @@
             return basePace; 
         }
 
-        // PERHITUNGAN HEART RATE TERPISAH
         function calculateIndependentHR(activityType, hrZone, hrPattern, basePace, currentPace, elapsedSec, totalDurationSec, progressFraction) {
             let baseHR = 145;
             let minHR = 100;
             let maxHR = 180;
 
-            // 1. Tentukan Baseline HR Berdasarkan Zona yang Dipilih
             if (hrZone === 'auto') {
                 if (activityType === 'running') { baseHR = 150; minHR = 115; maxHR = 188; }
                 else if (activityType === 'cycling') { baseHR = 135; minHR = 98; maxHR = 175; }
@@ -362,7 +466,6 @@
             else if (hrZone === 'z4') { baseHR = 168; minHR = 158; maxHR = 175; }
             else if (hrZone === 'z5') { baseHR = 182; minHR = 174; maxHR = 195; }
 
-            // 2. Terapkan Pola Karakteristik HR yang Dipilih
             let calculatedHR = baseHR;
 
             if (hrPattern === 'dynamic') {
@@ -384,7 +487,6 @@
                 calculatedHR = minHR + (baseHR - minHR) * warmupFactor;
             }
 
-            // Fluktuasi acak sensor optik
             let sensorNoise = (Math.random() - 0.5) * 3;
             let finalHR = Math.round(calculatedHR + sensorNoise);
 
@@ -393,8 +495,10 @@
 
         function calculateRouteStats() {
             let totalDist = 0;
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                totalDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+            let coords = routeCoordinates.length > 0 ? routeCoordinates : waypoints.map(wp => [wp.lat, wp.lng]);
+
+            for (let i = 0; i < coords.length - 1; i++) {
+                totalDist += calculateDistance(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1]);
             }
 
             let basePace = parseFloat(document.getElementById('pace').value) || 5.0;
@@ -405,8 +509,8 @@
             let estMinutes = 0;
             let accumulatedDist = 0;
 
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                let segDist = calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+            for (let i = 0; i < coords.length - 1; i++) {
+                let segDist = calculateDistance(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1]);
                 let progress = totalDist > 0 ? (accumulatedDist + segDist / 2) / totalDist : 0;
                 let currentPace = getDynamicPace(basePace, progress, paceStrategy);
                 
@@ -461,6 +565,10 @@
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
             document.getElementById('startTime').value = now.toISOString().slice(0,16);
             updateDefaultPace();
+
+            document.getElementById('routingMode').addEventListener('change', () => {
+                updateRouteCoordinates();
+            });
         };
 
         function getDeviceConfig(brandKey) {
@@ -519,13 +627,13 @@
         }
 
         function generateGPX() {
-            // 1. Validasi Minimal Titik Rute
-            if (waypoints.length < 2) {
+            let coords = routeCoordinates.length > 0 ? routeCoordinates : waypoints.map(wp => [wp.lat, wp.lng]);
+
+            if (coords.length < 2) {
                 alert("⚠️ Rute Belum Dibuat!\nSilakan klik minimal 2 titik di peta untuk membuat jalur latihan.");
                 return;
             }
 
-            // 2. Validasi Waktu Mulai
             const startTimeInput = document.getElementById('startTime').value;
             if (!startTimeInput) {
                 alert("⚠️ Waktu Mulai Kosong!\nSilakan isi tanggal dan jam waktu mulai latihan terlebih dahulu.");
@@ -547,10 +655,9 @@
                 let trackPointsXML = "";
                 let currentTimestamp = new Date(startTime.getTime());
 
-                // Hitung total jarak rute
                 let totalRouteDist = 0;
-                for (let i = 0; i < waypoints.length - 1; i++) {
-                    totalRouteDist += calculateDistance(waypoints[i].lat, waypoints[i].lng, waypoints[i+1].lat, waypoints[i+1].lng);
+                for (let i = 0; i < coords.length - 1; i++) {
+                    totalRouteDist += calculateDistance(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1]);
                 }
 
                 let totalDurationSec = (totalRouteDist * basePace) * 60;
@@ -558,10 +665,9 @@
                 let currentElevation = 18.0; 
                 let totalElapsedSec = 0;
 
-                // Rekam setiap segmen jalanan
-                for (let i = 0; i < waypoints.length - 1; i++) {
-                    let p1 = waypoints[i];
-                    let p2 = waypoints[i+1];
+                for (let i = 0; i < coords.length - 1; i++) {
+                    let p1 = { lat: coords[i][0], lng: coords[i][1] };
+                    let p2 = { lat: coords[i+1][0], lng: coords[i+1][1] };
                     let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
                     let segDistMeters = segDistKm * 1000;
 
@@ -569,9 +675,8 @@
                     let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
                     let speedMetersPerSec = 1000 / (segPace * 60);
                     
-                    let segDurationSec = Math.round(segDistMeters / speedMetersPerSec);
+                    let segDurationSec = Math.max(Math.round(segDistMeters / speedMetersPerSec), 1);
 
-                    // Buat titik per 1 detik
                     for (let sec = 0; sec <= segDurationSec; sec++) {
                         if (sec === 0 && i > 0) continue;
 
@@ -580,20 +685,17 @@
                         let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
                         let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
 
-                        // Micro-Jitter GPS noise
                         let latNoise = (Math.random() - 0.5) * 0.000006;
                         let lonNoise = (Math.random() - 0.5) * 0.000006;
                         
                         let curLat = rawLat + latNoise;
-                        let curLon = rawLng + lonNoise; // Variabel diseragamkan: curLon
+                        let curLon = rawLng + lonNoise;
 
                         currentElevation += (Math.random() - 0.48) * 0.15;
 
-                        // Hitung Heart Rate Independen
                         let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
                         let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
 
-                        // Kadensi Langkah / Kayuhan Dinamis
                         let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
                         let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
                         let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
@@ -629,7 +731,7 @@
      xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
   <metadata>
     <name>${activityType.toUpperCase()} - ${startTime.toLocaleDateString()}</name>
-    <desc>Independent Pace & HR telemetry generated for ${deviceConfig.model}.</desc>
+    <desc>Smooth-curved GPX route generated for ${deviceConfig.model}.</desc>
     <author>
       <name>${deviceConfig.author}</name>
     </author>
@@ -637,7 +739,7 @@
       <year>${new Date().getFullYear()}</year>
     </copyright>
     <time>${startTime.toISOString()}</time>
-    <keywords>${activityType}, strava-ready, pace-${paceStrategy}, hr-${hrZone}-${hrPattern}</keywords>
+    <keywords>${activityType}, strava-ready, smooth-corners, pace-${paceStrategy}, hr-${hrZone}-${hrPattern}</keywords>
     <extensions>
       <device_model>${deviceConfig.model}</device_model>
       <device_id>${deviceConfig.id}</device_id>
@@ -660,7 +762,6 @@ ${trackPointsXML}
   </trk>
 </gpx>`;
 
-                // Pemicu Download File GPX Aman
                 let blob = new Blob([gpxContent], { type: 'application/gpx+xml;charset=utf-8;' });
                 let url = URL.createObjectURL(blob);
                 let a = document.createElement('a');
