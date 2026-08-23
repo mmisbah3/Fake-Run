@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Activity File Generator</title>
+  <style>
+    :root {
+      --primary: #fc4c02; /* Strava Orange */
+      --primary-hover: #e04300;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --focus-ring: rgba(252, 76, 2, 0.2);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px;
+      margin: 0;
+    }
+
+    .card {
+      background: var(--card);
+      width: 100%;
+      max-width: 600px;
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+      border: 1px solid var(--border);
+      padding: 28px;
+      box-sizing: border-box;
+    }
+
+    /* 2 Tombol Header GPX & TCX */
+    .top-nav-buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .nav-btn {
+      padding: 12px;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    /* Tombol GPX */
+    .btn-gpx-top {
+      background-color: #f0f9ff;
+      color: #0284c7;
+      border-color: #bae6fd;
+    }
+    .btn-gpx-top:hover {
+      background-color: #0284c7;
+      color: #ffffff;
+      border-color: #0284c7;
+    }
+
+    /* Tombol TCX (Aktif/Highlight) */
+    .btn-tcx-top {
+      background-color: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+    .btn-tcx-top:hover {
+      background-color: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 20px;
+      color: var(--text);
+      text-align: center;
+      font-size: 22px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .help-text {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+      outline: none;
+      transition: all 0.2s ease;
+      background-color: #fff;
+    }
+
+    optgroup {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    option {
+      color: var(--text);
+      font-weight: normal;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--focus-ring);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .pace-inputs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pace-separator {
+      font-weight: bold;
+      color: var(--text-muted);
+      font-size: 18px;
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: #f1f5f9;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 18px;
+      cursor: pointer;
+    }
+
+    .checkbox-container input {
+      width: auto;
+      margin-top: 3px;
+      cursor: pointer;
+    }
+
+    .checkbox-container label {
+      margin: 0;
+      cursor: pointer;
+      font-size: 13.5px;
+      line-height: 1.4;
+    }
+
+    .badge {
+      font-size: 10.5px;
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: #475569;
+      font-weight: 500;
+    }
+
+    .gps-section {
+      transition: all 0.2s ease;
+    }
+
+    .disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    button.btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: background-color 0.2s;
+    }
+
+    button.btn-primary:hover {
+      background: var(--primary-hover);
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <!-- 2 Tombol Bagian Atas: GPX dan TCX -->
+  <div class="top-nav-buttons">
+    <a href="ruteku.netlify.app" target="_blank" rel="noopener noreferrer" class="nav-btn btn-gpx-top" id="gpxTopBtn">
+      📍 GPX
+    </a>
+    <a href="ruteku.netlify.app/tcx" target="_blank" rel="noopener noreferrer" class="nav-btn btn-tcx-top" id="tcxTopBtn">
+      ⚡ TCX
+    </a>
+  </div>
+
+  <h2>TCX Activity Generator</h2>
+  
+  <form id="tcxForm">
+    <!-- Pilihan Olahraga Kategori Strava -->
+    <div class="form-group">
+      <label for="sport">Jenis Olahraga (Sport)</label>
+      <select id="sport">
+        <optgroup label="🏃 Foot Sports">
+          <option value="Run" selected>Run (Lari Luar Ruang)</option>
+          <option value="TrailRun">Trail Run</option>
+          <option value="Treadmill">Treadmill (Lari Indoor)</option>
+          <option value="Walk">Walk (Jalan Kaki)</option>
+          <option value="Hike">Hike (Mendaki)</option>
+        </optgroup>
+        
+        <optgroup label="🚴 Cycle Sports">
+          <option value="Ride">Ride (Sepeda Luar Ruang)</option>
+          <option value="GravelRide">Gravel Ride</option>
+          <option value="MountainBikeRide">Mountain Bike Ride (MTB)</option>
+          <option value="EBikeRide">E-Bike Ride</option>
+          <option value="VirtualRide">Virtual Ride (Zwift / Trainer)</option>
+          <option value="Velomobile">Velomobile</option>
+        </optgroup>
+
+        <optgroup label="🏊 Water Sports">
+          <option value="Swim">Swim (Renang Terbuka)</option>
+          <option value="PoolSwim">Pool Swim (Renang Kolam)</option>
+          <option value="Kayaking">Kayaking</option>
+          <option value="Canoeing">Canoeing</option>
+          <option value="Rowing">Rowing (Dayung)</option>
+          <option value="StandUpPaddling">Stand Up Paddling (SUP)</option>
+          <option value="Surfing">Surfing</option>
+          <option value="Windsurf">Windsurf</option>
+          <option value="Kitesurf">Kitesurf</option>
+        </optgroup>
+
+        <optgroup label="🏋️ Gym & Fitness Sports">
+          <option value="WeightTraining">Weight Training (Gym)</option>
+          <option value="Workout">Workout (HIIT / Kalistenik)</option>
+          <option value="Crossfit">CrossFit</option>
+          <option value="Elliptical">Elliptical</option>
+          <option value="StairStepper">Stair-Stepper</option>
+          <option value="VirtualRun">Virtual Run</option>
+          <option value="Yoga">Yoga</option>
+          <option value="Pilates">Pilates</option>
+        </optgroup>
+
+        <optgroup label="🎿 Winter & Other Sports">
+          <option value="AlpineSki">Alpine Ski</option>
+          <option value="BackcountrySki">Backcountry Ski</option>
+          <option value="NordicSki">Nordic Ski</option>
+          <option value="Snowboard">Snowboard</option>
+          <option value="Snowshoe">Snowshoe</option>
+          <option value="IceSkate">Ice Skate</option>
+          <option value="InlineSkate">Inline Skate / Rollerblade</option>
+          <option value="RockClimbing">Rock Climbing</option>
+          <option value="Skateboard">Skateboard</option>
+          <option value="Football">Soccer / Football</option>
+          <option value="Golf">Golf</option>
+          <option value="Sailing">Sailing</option>
+          <option value="Badminton">Badminton</option>
+          <option value="Tennis">Tennis</option>
+          <option value="Pickleball">Pickleball</option>
+          <option value="Squash">Squash</option>
+          <option value="TableTennis">Table Tennis</option>
+          <option value="Handcycle">Handcycle</option>
+          <option value="Wheelchair">Wheelchair</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- Toggle Indoor Mode -->
+    <div class="checkbox-container" onclick="document.getElementById('indoorMode').click();">
+      <input type="checkbox" id="indoorMode" onclick="event.stopPropagation();">
+      <label for="indoorMode">
+        <strong>Mode Indoor / Tanpa Koordinat GPS</strong>
+        <div class="help-text">Centang jika latihan dilakukan di dalam ruangan tanpa peta rute.</div>
+      </label>
+    </div>
+
+    <!-- Waktu & Durasi -->
+    <div class="grid">
+      <div class="form-group">
+        <label for="startTime">Waktu Mulai</label>
+        <input type="datetime-local" id="startTime" required>
+      </div>
+      <div class="form-group">
+        <label for="duration">Durasi <span class="badge">Menit</span></label>
+        <input type="number" id="duration" value="30" min="1" max="1440" required>
+      </div>
+    </div>
+
+    <!-- Input Pace Target Rata-rata -->
+    <div class="form-group">
+      <label>Pace Target Rata-rata <span class="badge">Menit:Detik / km</span></label>
+      <div class="pace-inputs">
+        <input type="number" id="paceMin" min="0" max="59" value="6" placeholder="Min" title="Menit" required>
+        <span class="pace-separator">:</span>
+        <input type="number" id="paceSec" min="0" max="59" value="0" placeholder="Detik" title="Detik" required>
+        <span class="badge" style="padding: 10px 12px; font-size: 13px;">/km</span>
+      </div>
+      <div class="help-text" id="paceSpeedPreview">Setara dengan kecepatan: 10.00 km/jam</div>
+    </div>
+
+    <!-- Profil Dinamika Pace -->
+    <div class="form-group">
+      <label for="paceProfile">Pola Variasi Kecepatan (Pace Profile)</label>
+      <select id="paceProfile">
+        <option value="natural">Natural Undulation (Variasi gelombang alami fluktuatif)</option>
+        <option value="negative_split">Negative Split / Progressive (Makin lama makin kencang)</option>
+        <option value="intervals">Intervals / Fartlek (Variasi Kencang & Recovery)</option>
+        <option value="fatigue">Fatigue / Positive Split (Kencang di awal, melambat di akhir)</option>
+      </select>
+      <div class="help-text">Pace, Heart Rate, dan Cadence saling mempengaruhi secara dinamis.</div>
+    </div>
+
+    <!-- Heart Rate & Cadence -->
+    <div class="grid">
+      <div class="form-group">
+        <label for="avgHr">Target Avg HR <span class="badge">BPM</span></label>
+        <input type="number" id="avgHr" value="150" min="40" max="220" required>
+        <div class="help-text">Detak jantung rata-rata.</div>
+      </div>
+      <div class="form-group">
+        <label for="cadence">Target Cadence <span class="badge" id="cadenceUnit">SPM</span></label>
+        <input type="number" id="cadence" value="85" min="0" max="250" required>
+        <div class="help-text" id="cadenceHelp">Garmin standard: 1 sisi kaki (85 SPM = 170 total).</div>
+      </div>
+    </div>
+
+    <!-- Input Kalori -->
+    <div class="form-group">
+      <label for="calories">Kalori Terbakar <span class="badge">kkal</span></label>
+      <input type="number" id="calories" value="325" min="0" max="20000" required>
+      <div class="help-text">Dapat diubah secara manual jika diperlukan.</div>
+    </div>
+
+    <!-- Koordinat GPS -->
+    <div id="gpsContainer" class="gps-section">
+      <div class="grid">
+        <div class="form-group">
+          <label for="startLat">Start Latitude</label>
+          <input type="number" step="0.000001" id="startLat" value="-6.175392">
+        </div>
+        <div class="form-group">
+          <label for="startLon">Start Longitude</label>
+          <input type="number" step="0.000001" id="startLon" value="106.827153">
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary">Download File .TCX</button>
+  </form>
+</div>
+
+<script>
+  // Ganti alamat URL di bawah jika ingin mengarahkan tombol atas ke web lain
+  const GPX_LINK_URL = "https://ruteku.netlify.app";
+  const TCX_LINK_URL = "https://ruteku.netlify.app/tcx";
+
+  document.getElementById('gpxTopBtn').href = GPX_LINK_URL;
+  document.getElementById('tcxTopBtn').href = TCX_LINK_URL;
+
+  // Set default datetime ke waktu lokal saat ini
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('startTime').value = now.toISOString().slice(0, 16);
+
+  // Preset Mapping Strava
+  const stravaPresets = {
+    Run: { tcxSport: "Running", paceMin: 5, paceSec: 40, hr: 152, cad: 85, calPerHr: 680, unit: "SPM", help: "1 sisi kaki (85 SPM = 170 total langkah)", indoor: false },
+    TrailRun: { tcxSport: "Running", paceMin: 7, paceSec: 15, hr: 158, cad: 82, calPerHr: 720, unit: "SPM", help: "Ritme lari trail / jalur alam", indoor: false },
+    Treadmill: { tcxSport: "Running", paceMin: 6, paceSec: 0, hr: 148, cad: 85, calPerHr: 650, unit: "SPM", help: "Lari treadmill indoor", indoor: true },
+    Walk: { tcxSport: "Walking", paceMin: 12, paceSec: 0, hr: 105, cad: 55, calPerHr: 280, unit: "SPM", help: "Langkah jalan santai", indoor: false },
+    Hike: { tcxSport: "Hiking", paceMin: 14, paceSec: 0, hr: 125, cad: 50, calPerHr: 450, unit: "SPM", help: "Langkah pendakian gunung", indoor: false },
+    VirtualRun: { tcxSport: "Running", paceMin: 5, paceSec: 30, hr: 150, cad: 86, calPerHr: 650, unit: "SPM", help: "Lari virtual (Zwift)", indoor: true },
+
+    Ride: { tcxSport: "Biking", paceMin: 2, paceSec: 15, hr: 140, cad: 85, calPerHr: 600, unit: "RPM", help: "Putaran pedal/menit (~26.6 km/h)", indoor: false },
+    GravelRide: { tcxSport: "Biking", paceMin: 2, paceSec: 45, hr: 145, cad: 82, calPerHr: 620, unit: "RPM", help: "Putaran pedal medan gravel", indoor: false },
+    MountainBikeRide: { tcxSport: "Biking", paceMin: 3, paceSec: 30, hr: 152, cad: 78, calPerHr: 650, unit: "RPM", help: "Gowes medan off-road / MTB", indoor: false },
+    EBikeRide: { tcxSport: "Biking", paceMin: 2, paceSec: 0, hr: 120, cad: 80, calPerHr: 350, unit: "RPM", help: "Sepeda bantuan motor listrik", indoor: false },
+    VirtualRide: { tcxSport: "Biking", paceMin: 2, paceSec: 20, hr: 142, cad: 88, calPerHr: 580, unit: "RPM", help: "Smart trainer indoor", indoor: true },
+    Velomobile: { tcxSport: "Biking", paceMin: 1, paceSec: 45, hr: 135, cad: 90, calPerHr: 500, unit: "RPM", help: "Sepeda aerodinamis tertutup", indoor: false },
+    Handcycle: { tcxSport: "Biking", paceMin: 3, paceSec: 15, hr: 135, cad: 75, calPerHr: 450, unit: "RPM", help: "Kayuhan tangan", indoor: false },
+
+    Swim: { tcxSport: "Other", paceMin: 22, paceSec: 0, hr: 138, cad: 32, calPerHr: 550, unit: "Strokes/min", help: "Tarikan lengan per menit di laut/danau", indoor: false },
+    PoolSwim: { tcxSport: "Other", paceMin: 20, paceSec: 0, hr: 135, cad: 34, calPerHr: 520, unit: "Strokes/min", help: "Renang di kolam", indoor: true },
+    Kayaking: { tcxSport: "Other", paceMin: 8, paceSec: 30, hr: 125, cad: 40, calPerHr: 420, unit: "Strokes/min", help: "Kayuhan dayung kayak", indoor: false },
+    Canoeing: { tcxSport: "Other", paceMin: 9, paceSec: 0, hr: 120, cad: 38, calPerHr: 390, unit: "Strokes/min", help: "Kayuhan kano", indoor: false },
+    Rowing: { tcxSport: "Other", paceMin: 5, paceSec: 0, hr: 148, cad: 28, calPerHr: 600, unit: "SPM", help: "Tarikan dayung per menit", indoor: false },
+    StandUpPaddling: { tcxSport: "Other", paceMin: 10, paceSec: 0, hr: 118, cad: 30, calPerHr: 350, unit: "Strokes/min", help: "Dayung berdiri di papan", indoor: false },
+    Surfing: { tcxSport: "Other", paceMin: 15, paceSec: 0, hr: 130, cad: 0, calPerHr: 380, unit: "SPM", help: "Aktivitas selancar ombak", indoor: false },
+    Windsurf: { tcxSport: "Other", paceMin: 4, paceSec: 0, hr: 135, cad: 0, calPerHr: 450, unit: "SPM", help: "Selancar angin", indoor: false },
+    Kitesurf: { tcxSport: "Other", paceMin: 3, paceSec: 0, hr: 140, cad: 0, calPerHr: 500, unit: "SPM", help: "Selancar layang", indoor: false },
+    Sailing: { tcxSport: "Other", paceMin: 6, paceSec: 0, hr: 110, cad: 0, calPerHr: 260, unit: "Knots", help: "Navigasi kapal layar", indoor: false },
+
+    WeightTraining: { tcxSport: "Other", paceMin: 30, paceSec: 0, hr: 122, cad: 0, calPerHr: 380, unit: "Reps/min", help: "Latihan beban gym", indoor: true },
+    Workout: { tcxSport: "Other", paceMin: 15, paceSec: 0, hr: 142, cad: 0, calPerHr: 480, unit: "Reps/min", help: "HIIT / Circuit Training", indoor: true },
+    Crossfit: { tcxSport: "Other", paceMin: 12, paceSec: 0, hr: 158, cad: 0, calPerHr: 620, unit: "Reps/min", help: "Latihan intensitas tinggi Crossfit", indoor: true },
+    Elliptical: { tcxSport: "Other", paceMin: 6, paceSec: 30, hr: 136, cad: 65, calPerHr: 480, unit: "SPM", help: "Langkah mesin eliptikal", indoor: true },
+    StairStepper: { tcxSport: "Other", paceMin: 10, paceSec: 0, hr: 145, cad: 50, calPerHr: 520, unit: "Steps/min", help: "Langkah mesin tangga", indoor: true },
+    Yoga: { tcxSport: "Other", paceMin: 60, paceSec: 0, hr: 95, cad: 0, calPerHr: 200, unit: "Pose/min", help: "Peregangan dan yoga", indoor: true },
+    Pilates: { tcxSport: "Other", paceMin: 60, paceSec: 0, hr: 105, cad: 0, calPerHr: 240, unit: "Reps/min", help: "Latihan kontrol inti tubuh", indoor: true },
+
+    AlpineSki: { tcxSport: "Other", paceMin: 2, paceSec: 30, hr: 138, cad: 0, calPerHr: 500, unit: "SPM", help: "Ski lereng salju", indoor: false },
+    BackcountrySki: { tcxSport: "Other", paceMin: 5, paceSec: 0, hr: 155, cad: 0, calPerHr: 650, unit: "SPM", help: "Ski medan liar", indoor: false },
+    NordicSki: { tcxSport: "Other", paceMin: 4, paceSec: 0, hr: 158, cad: 55, calPerHr: 700, unit: "SPM", help: "Ski lintas alam", indoor: false },
+    Snowboard: { tcxSport: "Other", paceMin: 3, paceSec: 0, hr: 135, cad: 0, calPerHr: 480, unit: "SPM", help: "Seluncur papan salju", indoor: false },
+    Snowshoe: { tcxSport: "Other", paceMin: 15, paceSec: 0, hr: 130, cad: 45, calPerHr: 450, unit: "SPM", help: "Jalan sepatu salju", indoor: false },
+    IceSkate: { tcxSport: "Other", paceMin: 3, paceSec: 30, hr: 138, cad: 50, calPerHr: 480, unit: "SPM", help: "Seluncur es", indoor: false },
+    InlineSkate: { tcxSport: "Other", paceMin: 3, paceSec: 15, hr: 142, cad: 55, calPerHr: 550, unit: "SPM", help: "Sepatu roda / Rollerblade", indoor: false },
+    RockClimbing: { tcxSport: "Other", paceMin: 45, paceSec: 0, hr: 130, cad: 0, calPerHr: 500, unit: "Moves/min", help: "Panjat tebing", indoor: false },
+    Skateboard: { tcxSport: "Other", paceMin: 5, paceSec: 0, hr: 125, cad: 0, calPerHr: 350, unit: "SPM", help: "Papan luncur jalanan", indoor: false },
+    Football: { tcxSport: "Other", paceMin: 7, paceSec: 30, hr: 155, cad: 70, calPerHr: 600, unit: "SPM", help: "Permainan sepak bola", indoor: false },
+    Golf: { tcxSport: "Other", paceMin: 15, paceSec: 0, hr: 98, cad: 45, calPerHr: 250, unit: "SPM", help: "Jalan di lapangan golf", indoor: false },
+    Badminton: { tcxSport: "Other", paceMin: 8, paceSec: 0, hr: 148, cad: 0, calPerHr: 480, unit: "SPM", help: "Bulu tangkis", indoor: true },
+    Tennis: { tcxSport: "Other", paceMin: 7, paceSec: 45, hr: 146, cad: 0, calPerHr: 500, unit: "SPM", help: "Permainan tenis lapangan", indoor: false },
+    Pickleball: { tcxSport: "Other", paceMin: 9, paceSec: 0, hr: 135, cad: 0, calPerHr: 420, unit: "SPM", help: "Permainan pickleball", indoor: false },
+    Squash: { tcxSport: "Other", paceMin: 7, paceSec: 0, hr: 160, cad: 0, calPerHr: 650, unit: "SPM", help: "Permainan squash", indoor: true },
+    TableTennis: { tcxSport: "Other", paceMin: 20, paceSec: 0, hr: 110, cad: 0, calPerHr: 260, unit: "SPM", help: "Tenis meja / Pingpong", indoor: true },
+    Wheelchair: { tcxSport: "Other", paceMin: 6, paceSec: 0, hr: 135, cad: 60, calPerHr: 420, unit: "Pushes/min", help: "Dorongan kursi roda per menit", indoor: false }
+  };
+
+  const sportSelect = document.getElementById('sport');
+  const durationInput = document.getElementById('duration');
+  const caloriesInput = document.getElementById('calories');
+  const indoorCheckbox = document.getElementById('indoorMode');
+  const gpsContainer = document.getElementById('gpsContainer');
+  const cadenceUnit = document.getElementById('cadenceUnit');
+  const cadenceHelp = document.getElementById('cadenceHelp');
+  const paceMinInput = document.getElementById('paceMin');
+  const paceSecInput = document.getElementById('paceSec');
+  const paceSpeedPreview = document.getElementById('paceSpeedPreview');
+  const paceProfileSelect = document.getElementById('paceProfile');
+
+  function getBaseSpeedFromPace() {
+    const min = parseInt(paceMinInput.value) || 0;
+    const sec = parseInt(paceSecInput.value) || 0;
+    const totalPaceSeconds = (min * 60) + sec;
+    
+    if (totalPaceSeconds <= 0) return 2.77;
+
+    const speedMps = 1000.0 / totalPaceSeconds;
+    const speedKmh = speedMps * 3.6;
+    
+    paceSpeedPreview.textContent = `Setara dengan kecepatan: ${speedKmh.toFixed(2)} km/jam (${speedMps.toFixed(2)} m/s)`;
+    return speedMps;
+  }
+
+  function updateSportFields() {
+    const sportKey = sportSelect.value;
+    const cfg = stravaPresets[sportKey];
+    if (cfg) {
+      paceMinInput.value = cfg.paceMin;
+      paceSecInput.value = cfg.paceSec;
+      document.getElementById('avgHr').value = cfg.hr;
+      document.getElementById('cadence').value = cfg.cad;
+      cadenceUnit.textContent = cfg.unit;
+      cadenceHelp.textContent = cfg.help;
+      
+      indoorCheckbox.checked = cfg.indoor;
+      if (cfg.indoor) {
+        gpsContainer.classList.add('disabled');
+      } else {
+        gpsContainer.classList.remove('disabled');
+      }
+
+      getBaseSpeedFromPace();
+      calculateCalories();
+    }
+  }
+
+  function calculateCalories() {
+    const sportKey = sportSelect.value;
+    const duration = parseInt(durationInput.value) || 0;
+    const cfg = stravaPresets[sportKey];
+    if (cfg) {
+      caloriesInput.value = Math.round((duration / 60) * cfg.calPerHr);
+    }
+  }
+
+  indoorCheckbox.addEventListener('change', () => {
+    if (indoorCheckbox.checked) {
+      gpsContainer.classList.add('disabled');
+    } else {
+      gpsContainer.classList.remove('disabled');
+    }
+  });
+
+  sportSelect.addEventListener('change', updateSportFields);
+  durationInput.addEventListener('input', calculateCalories);
+  paceMinInput.addEventListener('input', getBaseSpeedFromPace);
+  paceSecInput.addEventListener('input', getBaseSpeedFromPace);
+
+  getBaseSpeedFromPace();
+
+  // Generator Logika TCX saat Submit
+  document.getElementById('tcxForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const isIndoor = indoorCheckbox.checked;
+    const stravaSportName = sportSelect.value;
+    const cfg = stravaPresets[stravaSportName] || { tcxSport: "Other", calPerHr: 400 };
+    const tcxSportCategory = cfg.tcxSport;
+
+    const startTimeInput = new Date(document.getElementById('startTime').value);
+    const durationMinutes = parseInt(durationInput.value);
+    const targetHr = parseInt(document.getElementById('avgHr').value);
+    const baseCadence = parseInt(document.getElementById('cadence').value);
+    const customCalories = parseInt(caloriesInput.value) || 0;
+    const paceProfile = paceProfileSelect.value;
+
+    let currentLat = parseFloat(document.getElementById('startLat').value || 0);
+    let currentLon = parseFloat(document.getElementById('startLon').value || 0);
+
+    const baseSpeedMps = getBaseSpeedFromPace();
+    const totalSeconds = durationMinutes * 60;
+    
+    let cumulativeDist = 0;
+    let currentAlt = 15.0;
+    let heading = Math.random() * Math.PI * 2;
+    let trackpointsXml = '';
+    
+    let hrSum = 0;
+    let maxHr = 0;
+    let maxSpeed = 0;
+
+    for (let sec = 0; sec < totalSeconds; sec++) {
+      const ptTime = new Date(startTimeInput.getTime() + sec * 1000);
+      const isoTime = ptTime.toISOString();
+      const progress = sec / totalSeconds;
+
+      // 1. Variasi Pace Dinamis
+      let paceMultiplier = 1.0;
+      if (paceProfile === 'natural') {
+        const longWave = Math.sin(sec / 180) * 0.08;
+        const shortWave = Math.sin(sec / 30) * 0.04;
+        paceMultiplier = 1.0 + longWave + shortWave + (Math.random() * 0.04 - 0.02);
+      } else if (paceProfile === 'negative_split') {
+        paceMultiplier = 0.88 + (progress * 0.25);
+        if (progress > 0.95) paceMultiplier += 0.12;
+        paceMultiplier += (Math.random() * 0.03 - 0.015);
+      } else if (paceProfile === 'intervals') {
+        const intervalCycle = (sec % 180);
+        paceMultiplier = (intervalCycle < 120) ? (1.15 + (Math.random() * 0.04 - 0.02)) : (0.78 + (Math.random() * 0.04 - 0.02));
+      } else if (paceProfile === 'fatigue') {
+        paceMultiplier = 1.10 - (progress * 0.22) + (Math.random() * 0.03 - 0.015);
+      }
+
+      const stepSpeed = Math.max(0.1, baseSpeedMps * paceMultiplier);
+      if (stepSpeed > maxSpeed) maxSpeed = stepSpeed;
+      cumulativeDist += stepSpeed;
+
+      // 2. Heart Rate Dinamis
+      let hrTarget = targetHr + (paceMultiplier - 1.0) * 28;
+      if (progress < 0.10) {
+        hrTarget = (targetHr * 0.72) + ((hrTarget - (targetHr * 0.72)) * (progress / 0.10));
+      }
+      hrTarget += (progress * 5.0);
+
+      const currentHr = Math.max(45, Math.round(hrTarget + (Math.random() * 2 - 1)));
+      hrSum += currentHr;
+      if (currentHr > maxHr) maxHr = currentHr;
+
+      // 3. Cadence Dinamis
+      let currentCad = 0;
+      if (baseCadence > 0) {
+        currentCad = Math.round(baseCadence * (0.92 + (paceMultiplier * 0.08)) + (Math.random() * 2 - 1));
+      }
+
+      // 4. Koordinat GPS (jika bukan mode indoor)
+      let positionXml = '';
+      if (!isIndoor) {
+        heading += (Math.random() * 0.06 - 0.03);
+        currentLat += (stepSpeed * Math.cos(heading)) / 111320.0;
+        currentLon += (stepSpeed * Math.sin(heading)) / (111320.0 * Math.cos(currentLat * Math.PI / 180));
+        currentAlt += (Math.random() * 0.15 - 0.075);
+
+        positionXml = `
+          <Position>
+            <LatitudeDegrees>${currentLat.toFixed(7)}</LatitudeDegrees>
+            <LongitudeDegrees>${currentLon.toFixed(7)}</LongitudeDegrees>
+          </Position>
+          <AltitudeMeters>${currentAlt.toFixed(1)}</AltitudeMeters>`;
+      }
+
+      trackpointsXml += `
+        <Trackpoint>
+          <Time>${isoTime}</Time>${positionXml}
+          <DistanceMeters>${cumulativeDist.toFixed(2)}</DistanceMeters>
+          <HeartRateBpm><Value>${currentHr}</Value></HeartRateBpm>
+          ${currentCad > 0 ? `<Cadence>${currentCad}</Cadence>` : ''}
+          <Extensions>
+            <ns3:TPX>
+              <ns3:Speed>${stepSpeed.toFixed(2)}</ns3:Speed>
+              ${tcxSportCategory === 'Running' && currentCad > 0 ? `<ns3:RunCadence>${currentCad}</ns3:RunCadence>` : ''}
+            </ns3:TPX>
+          </Extensions>
+        </Trackpoint>`;
+    }
+
+    const calculatedAvgHr = Math.round(hrSum / totalSeconds);
+    const startIso = startTimeInput.toISOString();
+
+    const tcxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<TrainingCenterDatabase
+  xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2"
+  xsi:schemaLocation="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2 http://www.garmin.com/xmlschemas/TrainingCenterDatabasev2.xsd">
+  <Activities>
+    <Activity Sport="${tcxSportCategory}">
+      <Id>${startIso}</Id>
+      <Notes>StravaActivityType:${stravaSportName}</Notes>
+      <Lap StartTime="${startIso}">
+        <TotalTimeSeconds>${totalSeconds.toFixed(1)}</TotalTimeSeconds>
+        <DistanceMeters>${cumulativeDist.toFixed(1)}</DistanceMeters>
+        <MaximumSpeed>${maxSpeed.toFixed(2)}</MaximumSpeed>
+        <Calories>${customCalories}</Calories>
+        <AverageHeartRateBpm><Value>${calculatedAvgHr}</Value></AverageHeartRateBpm>
+        <MaximumHeartRateBpm><Value>${maxHr}</Value></MaximumHeartRateBpm>
+        <Intensity>Active</Intensity>
+        <TriggerMethod>Manual</TriggerMethod>
+        <Track>${trackpointsXml}
+        </Track>
+      </Lap>
+      <Creator xsi:type="Device_t">
+        <Name>Strava TCX Generator Pro</Name>
+        <UnitId>3987654321</UnitId>
+        <ProductID>1</ProductID>
+        <Version>
+          <VersionMajor>1</VersionMajor>
+          <VersionMinor>0</VersionMinor>
+        </Version>
+      </Creator>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>`;
+
+    const prefix = isIndoor ? 'indoor' : 'outdoor';
+    const blob = new Blob([tcxContent], { type: 'application/vnd.garmin.tcx+xml' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `strava_${stravaSportName.toLowerCase()}_${prefix}_${Date.now()}.tcx`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  });
+</script>
+
+</body>
+</html>
