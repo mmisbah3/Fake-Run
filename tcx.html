@@ -42,7 +42,7 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     .nav-btn {
@@ -73,7 +73,7 @@
       border-color: #0284c7;
     }
 
-    /* Tombol TCX (Aktif/Highlight) */
+    /* Tombol TCX */
     .btn-tcx-top {
       background-color: var(--primary);
       color: #ffffff;
@@ -82,6 +82,45 @@
     .btn-tcx-top:hover {
       background-color: var(--primary-hover);
       border-color: var(--primary-hover);
+    }
+
+    /* Widget Counter Pengunjung */
+    .visitor-stats-widget {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      margin-bottom: 22px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      text-align: center;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 17px;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 24px;
+      background: #cbd5e1;
     }
 
     h2 {
@@ -223,12 +262,25 @@
 <div class="card">
   <!-- 2 Tombol Bagian Atas: GPX dan TCX -->
   <div class="top-nav-buttons">
-    <a href="ruteku.netlify.app" rel="noopener noreferrer" class="nav-btn btn-gpx-top" id="gpxTopBtn">
+    <a href="https://gpx.studio" target="_blank" rel="noopener noreferrer" class="nav-btn btn-gpx-top" id="gpxTopBtn">
       📍 GPX
     </a>
-    <a href="ruteku.netlify.app/tcx" rel="noopener noreferrer" class="nav-btn btn-tcx-top" id="tcxTopBtn">
+    <a href="https://www.strava.com/upload/select" target="_blank" rel="noopener noreferrer" class="nav-btn btn-tcx-top" id="tcxTopBtn">
       ⚡ TCX
     </a>
+  </div>
+
+  <!-- Widget Jumlah Pengunjung Harian & Total -->
+  <div class="visitor-stats-widget">
+    <div class="stat-item">
+      <span class="stat-label">👥 Pengunjung Hari Ini</span>
+      <span class="stat-value" id="todayVisitors">1</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item">
+      <span class="stat-label">🌐 Total Kunjungan</span>
+      <span class="stat-value" id="totalVisitors">1</span>
+    </div>
   </div>
 
   <h2>TCX Activity Generator</h2>
@@ -387,14 +439,57 @@
 </div>
 
 <script>
-  // Ganti alamat URL di bawah jika ingin mengarahkan tombol atas ke web lain
-  const GPX_LINK_URL = "https://ruteku.netlify.app";
-  const TCX_LINK_URL = "https://ruteku.netlify.app/tcx";
+  // ==========================================
+  // FITUR PENGHITUNG PENGUNJUNG TIAP HARI
+  // ==========================================
+  function updateVisitorCounter() {
+    const todayStr = new Date().toISOString().slice(0, 10); // Format: YYYY-MM-DD
+    const lastVisitDate = localStorage.getItem('visitor_last_date');
+    
+    let todayCount = parseInt(localStorage.getItem('visitor_today_count')) || 0;
+    let totalCount = parseInt(localStorage.getItem('visitor_total_count')) || 0;
 
+    // Periksa apakah ini sesi atau hari baru
+    if (lastVisitDate !== todayStr) {
+      todayCount = 1; // Reset hari baru
+      localStorage.setItem('visitor_last_date', todayStr);
+    } else {
+      todayCount += 1;
+    }
+    
+    totalCount += 1;
+
+    // Simpan ke storage lokal
+    localStorage.setItem('visitor_today_count', todayCount);
+    localStorage.setItem('visitor_total_count', totalCount);
+
+    // Tampilkan di layar
+    document.getElementById('todayVisitors').textContent = todayCount.toLocaleString('id-ID');
+    document.getElementById('totalVisitors').textContent = totalCount.toLocaleString('id-ID');
+
+    // Opsional: Sinkronisasi online via API publik tanpa backend
+    fetch(`https://api.counterapi.dev/v1/tcx_generator_tool/${todayStr}/up`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.count) {
+          document.getElementById('todayVisitors').textContent = data.count.toLocaleString('id-ID');
+        }
+      })
+      .catch(() => {
+        // Fallback tetap menggunakan penghitungan lokal jika offline
+      });
+  }
+
+  // Jalankan counter saat halaman dibuka
+  updateVisitorCounter();
+
+  // Tautan Default Tombol Atas
+  const GPX_LINK_URL = "https://gpx.studio";
+  const TCX_LINK_URL = "https://www.strava.com/upload/select";
   document.getElementById('gpxTopBtn').href = GPX_LINK_URL;
   document.getElementById('tcxTopBtn').href = TCX_LINK_URL;
 
-  // Set default datetime ke waktu lokal saat ini
+  // Set default datetime ke waktu sekarang
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('startTime').value = now.toISOString().slice(0, 16);

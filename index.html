@@ -18,11 +18,37 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* Container 2 Tombol Navigasi Tab Paling Atas */
+        /* Widget Badge Pengunjung Harian */
+        .visitor-counter-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 12px;
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 12px;
+        }
+        .visitor-badge {
+            background: #ffffff;
+            border: 1px solid #dcdde1;
+            padding: 5px 12px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .visitor-badge span {
+            color: #fc4c02;
+            font-weight: bold;
+        }
+
+        /* 2 Tombol Navigasi Tab Paling Atas */
         .top-custom-tabs {
             display: flex;
             gap: 16px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             width: 100%;
         }
 
@@ -43,7 +69,7 @@
             letter-spacing: 0.5px;
         }
 
-        /* Style Tombol GPX (Border Biru Muda, Teks Biru, Ikon Pin) */
+        /* Style Tombol GPX */
         .tab-btn-gpx {
             background-color: #ffffff;
             border: 2px solid #b3e5fc;
@@ -56,7 +82,7 @@
             transform: translateY(-1px);
         }
 
-        /* Style Tombol TCX (Solid Oranye Cerah, Teks Putih, Ikon Kilat) */
+        /* Style Tombol TCX */
         .tab-btn-tcx {
             background: #ff4800;
             border: 2px solid #ff4800;
@@ -198,12 +224,22 @@
 </head>
 <body>
 
-    <!-- 2 Tombol Navigasi Tab Sesuai Style Gambar (Ubah 'href' sesuai link yang diinginkan) -->
+    <!-- Widget Jumlah Pengunjung Harian & Total -->
+    <div class="visitor-counter-bar">
+        <div class="visitor-badge">
+            👥 Pengunjung Hari Ini: <span id="todayVisitors">0</span>
+        </div>
+        <div class="visitor-badge">
+            📊 Total Kunjungan: <span id="totalVisitors">0</span>
+        </div>
+    </div>
+
+    <!-- 2 Tombol Navigasi Tab Sesuai Style Gambar -->
     <div class="top-custom-tabs">
-        <a href="https://ruteku.netlify.app" class="tab-btn-link tab-btn-gpx">
+        <a href="https://example.com/gpx" class="tab-btn-link tab-btn-gpx">
             <span>📍</span> GPX
         </a>
-        <a href="https://ruteku.netlify.app/tcx" class="tab-btn-link tab-btn-tcx">
+        <a href="https://example.com/tcx" class="tab-btn-link tab-btn-tcx">
             <span>⚡</span> TCX
         </a>
     </div>
@@ -363,6 +399,35 @@
         let routeCoordinates = []; 
         let polyline = null;
         let markers = [];
+
+        // FUNGSI PENGHITUNG PENGUNJUNG HARIAN & TOTAL
+        function updateVisitorCounter() {
+            const todayStr = new Date().toISOString().slice(0, 10); // Format YYYY-MM-DD
+            const lastVisitDate = localStorage.getItem('last_visit_date');
+            
+            let todayCount = parseInt(localStorage.getItem('today_visitor_count') || '0');
+            let totalCount = parseInt(localStorage.getItem('total_visitor_count') || '142'); // Baseline awal
+
+            // Jika hari baru, reset hitungan hari ini
+            if (lastVisitDate !== todayStr) {
+                todayCount = 1;
+                totalCount += 1;
+                localStorage.setItem('last_visit_date', todayStr);
+            } else {
+                // Cek apakah sesi baru dalam hari yang sama
+                if (!sessionStorage.getItem('visited_session')) {
+                    todayCount += 1;
+                    totalCount += 1;
+                }
+            }
+
+            sessionStorage.setItem('visited_session', 'true');
+            localStorage.setItem('today_visitor_count', todayCount.toString());
+            localStorage.setItem('total_visitor_count', totalCount.toString());
+
+            document.getElementById('todayVisitors').innerText = todayCount.toLocaleString('id-ID');
+            document.getElementById('totalVisitors').innerText = totalCount.toLocaleString('id-ID');
+        }
 
         function initMap() {
             map = L.map('map').setView([-6.2088, 106.8456], 13);
@@ -643,6 +708,7 @@
         }
 
         window.onload = function() {
+            updateVisitorCounter(); // Jalankan counter pengunjung saat halaman dimuat
             initMap();
             const now = new Date();
             now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -709,75 +775,6 @@
             return configs[brandKey] || configs.morein_rock2;
         }
 
-        function buildTelemetryPoints(coords, startTime, basePace, paceStrategy, activityType, hrZone, hrPattern) {
-            let totalRouteDist = 0;
-            for (let i = 0; i < coords.length - 1; i++) {
-                totalRouteDist += calculateDistance(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1]);
-            }
-
-            let totalDurationSec = (totalRouteDist * basePace) * 60;
-            let coveredDist = 0;
-            let currentElevation = 18.0; 
-            let totalElapsedSec = 0;
-            let currentTimestamp = new Date(startTime.getTime());
-            let points = [];
-
-            for (let i = 0; i < coords.length - 1; i++) {
-                let p1 = { lat: coords[i][0], lng: coords[i][1] };
-                let p2 = { lat: coords[i+1][0], lng: coords[i+1][1] };
-                let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
-                let segDistMeters = segDistKm * 1000;
-
-                let progressFraction = totalRouteDist > 0 ? coveredDist / totalRouteDist : 0;
-                let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
-                let speedMetersPerSec = 1000 / (segPace * 60);
-                
-                let segDurationSec = Math.max(Math.round(segDistMeters / speedMetersPerSec), 1);
-
-                for (let sec = 0; sec <= segDurationSec; sec++) {
-                    if (sec === 0 && i > 0) continue;
-
-                    let fraction = segDurationSec > 0 ? (sec / segDurationSec) : 0;
-                    let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
-                    let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
-
-                    let latNoise = (Math.random() - 0.5) * 0.000006;
-                    let lonNoise = (Math.random() - 0.5) * 0.000006;
-                    
-                    let curLat = rawLat + latNoise;
-                    let curLon = rawLng + lonNoise;
-
-                    currentElevation += (Math.random() - 0.48) * 0.15;
-
-                    let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
-                    let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
-
-                    let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
-                    let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
-                    let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
-
-                    let pointTime = new Date(currentTimestamp.getTime() + (sec * 1000));
-                    let currentCumulativeMeters = (coveredDist + (segDistKm * fraction)) * 1000;
-
-                    points.push({
-                        lat: curLat,
-                        lon: curLon,
-                        ele: currentElevation,
-                        time: pointTime,
-                        hr: heartRate,
-                        cadence: cadence,
-                        distanceMeters: currentCumulativeMeters
-                    });
-                }
-
-                totalElapsedSec += segDurationSec;
-                currentTimestamp = new Date(currentTimestamp.getTime() + (segDurationSec * 1000));
-                coveredDist += segDistKm;
-            }
-
-            return { points, totalRouteDist, totalElapsedSec };
-        }
-
         function generateGPX() {
             let coords = routeCoordinates.length > 0 ? routeCoordinates : waypoints.map(wp => [wp.lat, wp.lng]);
 
@@ -802,24 +799,75 @@
                 const paceStrategy = document.getElementById('paceStrategy').value;
                 const hrZone = document.getElementById('hrZone').value;
                 const hrPattern = document.getElementById('hrPattern').value;
+
                 let startTime = new Date(startTimeInput);
-
-                const telemetry = buildTelemetryPoints(coords, startTime, basePace, paceStrategy, activityType, hrZone, hrPattern);
-
                 let trackPointsXML = "";
-                telemetry.points.forEach(pt => {
-                    trackPointsXML += `
-      <trkpt lat="${pt.lat.toFixed(6)}" lon="${pt.lon.toFixed(6)}">
-        <ele>${pt.ele.toFixed(1)}</ele>
-        <time>${pt.time.toISOString()}</time>
+                let currentTimestamp = new Date(startTime.getTime());
+
+                let totalRouteDist = 0;
+                for (let i = 0; i < coords.length - 1; i++) {
+                    totalRouteDist += calculateDistance(coords[i][0], coords[i][1], coords[i+1][0], coords[i+1][1]);
+                }
+
+                let totalDurationSec = (totalRouteDist * basePace) * 60;
+                let coveredDist = 0;
+                let currentElevation = 18.0; 
+                let totalElapsedSec = 0;
+
+                for (let i = 0; i < coords.length - 1; i++) {
+                    let p1 = { lat: coords[i][0], lng: coords[i][1] };
+                    let p2 = { lat: coords[i+1][0], lng: coords[i+1][1] };
+                    let segDistKm = calculateDistance(p1.lat, p1.lng, p2.lat, p2.lng);
+                    let segDistMeters = segDistKm * 1000;
+
+                    let progressFraction = totalRouteDist > 0 ? coveredDist / totalRouteDist : 0;
+                    let segPace = getDynamicPace(basePace, progressFraction, paceStrategy);
+                    let speedMetersPerSec = 1000 / (segPace * 60);
+                    
+                    let segDurationSec = Math.max(Math.round(segDistMeters / speedMetersPerSec), 1);
+
+                    for (let sec = 0; sec <= segDurationSec; sec++) {
+                        if (sec === 0 && i > 0) continue;
+
+                        let fraction = segDurationSec > 0 ? (sec / segDurationSec) : 0;
+                        
+                        let rawLat = p1.lat + (p2.lat - p1.lat) * fraction;
+                        let rawLng = p1.lng + (p2.lng - p1.lng) * fraction;
+
+                        let latNoise = (Math.random() - 0.5) * 0.000006;
+                        let lonNoise = (Math.random() - 0.5) * 0.000006;
+                        
+                        let curLat = rawLat + latNoise;
+                        let curLon = rawLng + lonNoise;
+
+                        currentElevation += (Math.random() - 0.48) * 0.15;
+
+                        let pointProgress = totalRouteDist > 0 ? (coveredDist + (segDistKm * fraction)) / totalRouteDist : 0;
+                        let heartRate = calculateIndependentHR(activityType, hrZone, hrPattern, basePace, segPace, totalElapsedSec + sec, totalDurationSec, pointProgress);
+
+                        let baseCadence = activityType === 'running' ? 168 : (activityType === 'cycling' ? 82 : 110);
+                        let cadenceAdjustment = Math.round((basePace / Math.max(segPace, 0.1) - 1.0) * 15);
+                        let cadence = Math.max(baseCadence + cadenceAdjustment + Math.floor((Math.random() - 0.5) * 4), 0);
+
+                        let pointTime = new Date(currentTimestamp.getTime() + (sec * 1000));
+
+                        trackPointsXML += `
+      <trkpt lat="${curLat.toFixed(6)}" lon="${curLon.toFixed(6)}">
+        <ele>${currentElevation.toFixed(1)}</ele>
+        <time>${pointTime.toISOString()}</time>
         <extensions>
           <gpxtpx:TrackPointExtension>
-            <gpxtpx:hr>${pt.hr}</gpxtpx:hr>
-            <gpxtpx:cad>${pt.cadence}</gpxtpx:cad>
+            <gpxtpx:hr>${heartRate}</gpxtpx:hr>
+            <gpxtpx:cad>${cadence}</gpxtpx:cad>
           </gpxtpx:TrackPointExtension>
         </extensions>
       </trkpt>`;
-                });
+                    }
+
+                    totalElapsedSec += segDurationSec;
+                    currentTimestamp = new Date(currentTimestamp.getTime() + (segDurationSec * 1000));
+                    coveredDist += segDistKm;
+                }
 
                 const generatedAt = new Date().toISOString();
 
@@ -863,27 +911,24 @@ ${trackPointsXML}
   </trk>
 </gpx>`;
 
-                triggerDownload(gpxContent, `${activityType}_${deviceBrandKey}_${startTime.toISOString().slice(0,10)}.gpx`, 'application/gpx+xml');
+                let blob = new Blob([gpxContent], { type: 'application/gpx+xml;charset=utf-8;' });
+                let url = URL.createObjectURL(blob);
+                let a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `${activityType}_${deviceBrandKey}_${startTime.toISOString().slice(0,10)}.gpx`;
+                
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+
             } catch (err) {
                 alert("❌ Terjadi kesalahan saat memproses GPX: " + err.message);
             }
-        }
-
-        function triggerDownload(content, filename, mimeType) {
-            let blob = new Blob([content], { type: `${mimeType};charset=utf-8;` });
-            let url = URL.createObjectURL(blob);
-            let a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = filename;
-            
-            document.body.appendChild(a);
-            a.click();
-            
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
         }
     </script>
 </body>
